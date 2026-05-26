@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacher Teacher?
+  student Student?
+  editLogs AttendanceEditLog[] @relation("EditedBy")
+}
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  pdpaText  String   @default("ข้อมูลนี้ถูกใช้เพื่อการบริหารจัดการชั้นเรียน การติดตามการเข้าเรียน และการจัดทำรายงานทางวิชาการของโรงเรียนเท่านั้น")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AcademicYear {
+  id        String     @id @default(cuid())
+  year      String     @unique
+  isActive  Boolean    @default(false)
+  semesters Semester[]
+  subjects  Subject[]
+  createdAt DateTime   @default(now())
+}
+
+model Semester {
+  id             String        @id @default(cuid())
+  name           String
+  startsAt       DateTime?
+  endsAt         DateTime?
+  academicYearId String
+  academicYear   AcademicYear  @relation(fields: [academicYearId], references: [id])
+  subjects       Subject[]
+  sessions       AttendanceSession[]
+
+  @@unique([name, academicYearId])
+}
+
+model Classroom {
+  id          String       @id @default(cuid())
+  level       String
+  room        String
+  name        String
+  homeroomTeacherId String?
+  homeroomTeacher   Teacher? @relation(fields: [homeroomTeacherId], references: [id])
+  students    Student[]
+  subjects    Subject[]
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([level, room])
+}
+
+model Teacher {
+  id        String      @id @default(cuid())
+  userId    String      @unique
+  employeeCode String?  @unique
+  phone     String?
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjects  Subject[]
+  classrooms Classroom[]
+}
+
+model Student {
+  id            String       @id @default(cuid())
+  userId        String?      @unique
+  studentCode   String       @unique
+  prefix        String?
+  firstName     String
+  lastName      String
+  level         String
+  number        Int?
+  email         String?
+  phone         String?
+  classroomId   String
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  classroom     Classroom    @relation(fields: [classroomId], references: [id])
+  enrollments   Enrollment[]
+  records       AttendanceRecord[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Subject {
+  id             String       @id @default(cuid())
+  code           String
+  name           String
+  teacherId      String
+  classroomId    String
+  dayOfWeek      Int
+  startsAt       String
+  endsAt         String
+  academicYearId String
+  semesterId     String
+  teacher        Teacher      @relation(fields: [teacherId], references: [id])
+  classroom      Classroom    @relation(fields: [classroomId], references: [id])
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  semester       Semester     @relation(fields: [semesterId], references: [id])
+  enrollments    Enrollment[]
+  sessions       AttendanceSession[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([code, classroomId, semesterId, academicYearId])
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  studentId   String
+  subjectId   String
+  classroomId String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  classroom   Classroom @relation(fields: [classroomId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([studentId, subjectId])
+}
+
+model AttendanceSession {
+  id              String        @id @default(cuid())
+  subjectId       String
+  semesterId      String
+  sessionDate     DateTime
+  periodLabel     String
+  status          String        @default("ACTIVE")
+  qrTokenHash     String
+  qrExpiresAt     DateTime
+  tokenUsedAt     DateTime?
+  checkInStartsAt DateTime
+  presentEndsAt   DateTime
+  lateEndsAt      DateTime
+  secretEnabled   Boolean       @default(false)
+  secretCodeHash   String?
+  createdById     String
+  subject         Subject       @relation(fields: [subjectId], references: [id])
+  semester        Semester      @relation(fields: [semesterId], references: [id])
+  records         AttendanceRecord[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([subjectId, sessionDate])
+}
+
+model AttendanceRecord {
+  id          String           @id @default(cuid())
+  sessionId   String
+  studentId   String
+  status      String           @default("PENDING_REVIEW")
+  checkedInAt DateTime?
+  note        String?
+  ipAddress   String?
+  userAgent   String?
+  tokenHash   String?
+  qrExpiresAt DateTime?
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  editLogs    AttendanceEditLog[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([sessionId, studentId])
+}
+
+model AttendanceEditLog {
+  id          String           @id @default(cuid())
+  recordId    String
+  studentName String
+  oldStatus   String
+  newStatus   String
+  reason      String
+  editedById  String
+  editedAt    DateTime         @default(now())
+  record      AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  editedBy    User             @relation("EditedBy", fields: [editedById], references: [id])
+}
+
+model AttendanceSettings {
+  id                      String   @id @default(cuid())
+  qrTtlSeconds            Int      @default(60)
+  presentWindowMinutes    Int      @default(15)
+  lateWindowMinutes       Int      @default(15)
+  warningAbsenceCount     Int      @default(3)
+  criticalAbsenceCount    Int      @default(5)
+  lateToAbsenceRatio      Int      @default(3)
+  minimumAttendancePercent Int     @default(80)
+  secretCodeEnabled       Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
+}
