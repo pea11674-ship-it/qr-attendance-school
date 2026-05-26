@@ -10,7 +10,7 @@
     "lint": "next lint",
     "setup": "prisma generate && npm run db:init && npm run db:seed",
     "db:init": "node scripts/init-db.mjs",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "node scripts/seed-db.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"
